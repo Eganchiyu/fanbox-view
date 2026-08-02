@@ -1,0 +1,26 @@
+# Gradle 缓存与构建产物（统一输出到根目录 build/）
+.gradle/
+build/
+**/build/
+
+# 本地 Gradle 发行版与归档
+.gradle-dist/
+*.zip
+
+# 本地配置（SDK 路径等）
+local.properties
+
+# Kotlin 编译缓存
+.kotlin/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# 构建产物（APK 一律输出到根目录 build/，根目录历史 APK 不入库）
+*.apk
+
+# 系统文件
+.DS_Store
+Thumbs.db

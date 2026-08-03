@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">Fanbox Reader</string>
+    <string name="tab_all">全部</string>
+    <string name="tab_favorites">收藏</string>
+    <string name="btn_choose_dir">选择目录</string>
+    <string name="btn_change_dir">更换目录</string>
+    <string name="btn_back">返回</string>
+    <string name="btn_favorite">收藏</string>
+    <string name="btn_unfavorite">已收藏</string>
+    <string name="btn_fullscreen">全屏</string>
+    <string name="hint_no_content">暂无内容</string>
+    <string name="hint_select_dir">选择 fanbox 文件夹开始阅读</string>
+    <string name="state_indexing">索引中…</string>
+    <string name="state_reading">正在读取文件…</string>
+    <string name="unit_blocks">%1$d 个块</string>
+    <string name="unsupported_type">暂不支持：%1$s</string>
+</resources>

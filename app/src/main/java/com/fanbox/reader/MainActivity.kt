@@ -1,6 +1,7 @@
 package com.fanbox.reader
 
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
@@ -23,8 +24,15 @@ import com.fanbox.reader.ui.theme.FanboxReaderTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        // 1. 开启 Edge-to-Edge 沉浸式
         enableEdgeToEdge()
+
         super.onCreate(savedInstanceState)
+
+        // 2. 放置在此处：禁用导航栏对比度强制遮罩（需 API 29 / Android 10+）
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
+        }
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (!BackStack.pop()) finish()

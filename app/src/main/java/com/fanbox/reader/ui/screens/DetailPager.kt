@@ -16,6 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.fanbox.reader.R
 import com.fanbox.reader.data.model.Post
+import com.fanbox.reader.data.repository.PostParser
 import com.fanbox.reader.data.repository.PostRepository
 import com.fanbox.reader.ui.components.ContentBlockItem
 import com.fanbox.reader.ui.navigation.BackStack
@@ -66,7 +67,7 @@ private fun DetailScreen(
     val listState = rememberLazyListState()
     
     LaunchedEffect(post.folder.uri) {
-        if (blocks.isEmpty()) blocks = PostRepository.withBlocks(post).blocks
+        if (blocks.isEmpty()) blocks = PostParser.withBlocks(post).blocks
     }
     
     val images = remember(blocks) {

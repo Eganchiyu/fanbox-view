@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
@@ -36,13 +37,18 @@ fun ContentBlockItem(block: Block, images: List<Uri>, openImage: (List<Uri>, Int
         )
         is Block.Text -> {
             if (block.isHtml) {
+                val spanned = remember(block.content) {
+                    Html.fromHtml(block.content, Html.FROM_HTML_MODE_COMPACT, Html.ImageGetter { null }, null)
+                }
                 AndroidView(
                     factory = { context ->
                         TextView(context).apply {
                             textSize = 16f
-                            text = Html.fromHtml(block.content, Html.FROM_HTML_MODE_COMPACT, Html.ImageGetter { null }, null)
                             movementMethod = LinkMovementMethod.getInstance()
                         }
+                    },
+                    update = { textView ->
+                        textView.text = spanned
                     },
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)
                 )

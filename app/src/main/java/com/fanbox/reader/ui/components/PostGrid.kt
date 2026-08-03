@@ -7,7 +7,7 @@ import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.fanbox.reader.R
 import com.fanbox.reader.data.model.Post
+import com.fanbox.reader.data.repository.PostRepository
 
 @Composable
 fun PostGrid(
@@ -40,39 +41,54 @@ fun PostGrid(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        itemsIndexed(visible) { _, post ->
+        itemsIndexed(visible, key = { _, post -> post.folder.uri.toString() }) { _, post ->
             val index = all.indexOfFirst { it.folder.uri == post.folder.uri }
-            Card(Modifier.fillMaxWidth().clickable { if (index >= 0) open(index) }) {
-                Column {
-                    if (post.cover != null) {
-                        AsyncImage(
-                            post.cover.uri,
-                            post.title,
-                            Modifier.fillMaxWidth().height(180.dp),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Box(
-                            Modifier.fillMaxWidth().height(180.dp).background(Color.LightGray),
-                            Alignment.Center
-                        ) {
-                            Text(stringResource(R.string.state_indexing))
-                        }
-                    }
-                    Column(Modifier.padding(12.dp)) {
-                        Text(post.title, maxLines = 2, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            post.date,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            if (post.blocks.isEmpty()) stringResource(R.string.state_reading) 
-                            else stringResource(R.string.unit_blocks, post.blocks.size),
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    }
+            PostGridItem(post) { if (index >= 0) open(index) }
+        }
+    }
+}
+
+@Composable
+private fun PostGridItem(post: Post, onClick: () -> Unit) {
+    var cover by remember(post.folder.uri) { mutableStateOf(post.cover) }
+    
+    LaunchedEffect(post.folder.uri) {
+        if (cover == null) {
+            PostRepository.loadCover(post) { loaded ->
+                cover = loaded
+            }
+        }
+    }
+
+    Card(Modifier.fillMaxWidth().clickable { onClick() }) {
+        Column {
+            if (cover != null) {
+                AsyncImage(
+                    cover!!.uri,
+                    post.title,
+                    Modifier.fillMaxWidth().height(180.dp),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Box(
+                    Modifier.fillMaxWidth().height(180.dp).background(Color.LightGray),
+                    Alignment.Center
+                ) {
+                    Text(stringResource(R.string.state_indexing))
                 }
+            }
+            Column(Modifier.padding(12.dp)) {
+                Text(post.title, maxLines = 2, fontWeight = FontWeight.SemiBold)
+                Text(
+                    post.date,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    if (post.blocks.isEmpty()) stringResource(R.string.state_reading) 
+                    else stringResource(R.string.unit_blocks, post.blocks.size),
+                    style = MaterialTheme.typography.labelSmall
+                )
             }
         }
     }

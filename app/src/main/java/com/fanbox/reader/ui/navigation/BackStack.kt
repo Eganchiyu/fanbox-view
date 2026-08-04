@@ -9,6 +9,8 @@ object BackStack {
     var current by mutableStateOf<Screen>(Screen.Home)
         private set
 
+    val stack: List<Screen> get() = states + current
+
     fun open(screen: Screen) {
         states.addLast(current)
         current = screen

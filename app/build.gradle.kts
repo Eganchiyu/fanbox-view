@@ -18,6 +18,7 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.documentfile:documentfile:1.0.1")
@@ -26,5 +27,5 @@ dependencies {
     implementation("org.jsoup:jsoup:1.17.2")
     implementation("androidx.media3:media3-exoplayer:1.6.1")
     implementation("androidx.media3:media3-ui:1.6.1")
-    implementation("io.github.carguo:gsyvideoplayer:11.1.0")
+    implementation("androidx.media3:media3-common:1.6.1")
 }

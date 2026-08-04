@@ -10,21 +10,56 @@ import java.util.Locale
 
 object PostParser {
     internal val bannerPrefs = AppContext.context.getSharedPreferences("banners", 0)
+    private val blocksCache = java.util.concurrent.ConcurrentHashMap<String, List<Block>>()
+
+    fun getCachedBlocks(uri: String): List<Block>? = blocksCache[uri]
 
     fun scanForCover(folder: DocumentFile): DocumentFile? {
+        val cached = blocksCache[folder.uri.toString()]
+        if (cached != null) return cached.filterIsInstance<Block.Image>().firstOrNull()?.file ?: cached.filterIsInstance<Block.Video>().firstOrNull()?.file
+
         val htmlFile = folder.listFiles().firstOrNull { 
             it.isFile && it.name?.substringAfterLast('.', "")?.lowercase(Locale.ROOT) in setOf("html", "htm") 
         }
-        val blocks = if (htmlFile != null) {
-            parseHtmlBlocks(folder, htmlFile)
-        } else {
-            fileBlocks(folder)
+        
+        if (htmlFile != null) {
+            val html = FileHelper.readText(htmlFile)
+            if (html.isNotBlank()) {
+                val fileMap = folder.listFiles().filter { it.isFile }.associateBy { it.name ?: "" }
+                val doc = Jsoup.parse(html)
+                // Fast scan for the first image or video in HTML
+                doc.select("img, video, a").forEach { element ->
+                    when (element.tagName()) {
+                        "img" -> {
+                            val src = element.attr("src").ifBlank { element.attr("data-src") }.ifBlank { element.attr("data-original") }
+                            FileHelper.resolveFile(src, folder, fileMap)?.let { return it }
+                        }
+                        "video" -> {
+                            val src = element.attr("src").ifBlank { element.selectFirst("source")?.attr("src") ?: "" }
+                            FileHelper.resolveFile(src, folder, fileMap)?.let { return it }
+                        }
+                        "a" -> {
+                            val href = element.attr("href")
+                            if (FileHelper.isVideoUrl(href)) {
+                                FileHelper.resolveFile(href, folder, fileMap)?.let { return it }
+                            }
+                        }
+                    }
+                }
+            }
         }
-        return blocks.filterIsInstance<Block.Image>().firstOrNull()?.file
-            ?: blocks.filterIsInstance<Block.Video>().firstOrNull()?.file
+        
+        return fileBlocks(folder).let { blocks ->
+            blocks.filterIsInstance<Block.Image>().firstOrNull()?.file
+                ?: blocks.filterIsInstance<Block.Video>().firstOrNull()?.file
+        }
     }
 
     fun withBlocks(post: Post): Post {
+        val uriStr = post.folder.uri.toString()
+        val cached = blocksCache[uriStr]
+        if (cached != null) return post.copy(blocks = cached)
+
         val htmlFile = post.folder.listFiles().firstOrNull { 
             it.isFile && it.name?.substringAfterLast('.', "")?.lowercase(Locale.ROOT) in setOf("html", "htm") 
         }
@@ -34,6 +69,9 @@ object PostParser {
         } else {
             fileBlocks(post.folder)
         }
+        
+        blocksCache[uriStr] = blocks
+        
         val cover = blocks.filterIsInstance<Block.Image>().firstOrNull()?.file
             ?: blocks.filterIsInstance<Block.Video>().firstOrNull()?.file
         
@@ -65,86 +103,71 @@ object PostParser {
         val doc = Jsoup.parse(html)
         val body = doc.body()
         val blocks = mutableListOf<Block>()
+        val textCollector = StringBuilder()
 
-        fun addMedia(element: Element) {
-            when (element.tagName()) {
-                "img" -> {
-                    val src = element.attr("src")
-                        .ifBlank { element.attr("data-src") }
-                        .ifBlank { element.attr("data-original") }
-                    FileHelper.resolveFile(src, folder, fileMap)?.let { blocks.add(Block.Image(it)) }
-                }
-                "video" -> {
-                    val src = element.attr("src").ifBlank { element.selectFirst("source")?.attr("src") ?: "" }
-                    FileHelper.resolveFile(src, folder, fileMap)?.let { blocks.add(Block.Video(it)) }
-                }
-            }
-        }
-
-        fun flushText(sb: StringBuilder) {
-            val text = sb.toString().trim()
+        fun flushText() {
+            val text = textCollector.toString().trim()
             if (text.isNotBlank()) blocks.add(Block.Text(text, isHtml = true))
-            sb.clear()
+            textCollector.clear()
         }
 
-        fun addBlock(element: Element) {
-            val tag = element.tagName()
-            when {
-                tag == "img" || tag == "video" -> addMedia(element)
-                tag == "a" && FileHelper.isVideoUrl(element.attr("href")) -> {
-                    FileHelper.resolveFile(element.attr("href"), folder, fileMap)?.let { blocks.add(Block.Video(it)) }
-                    for (child in element.children()) {
-                        if (child.tagName() == "img") addMedia(child)
+        fun processNode(node: org.jsoup.nodes.Node) {
+            if (node is Element) {
+                val tag = node.tagName()
+                val href = node.attr("href")
+
+                // Try to resolve as media first
+                val file = when {
+                    tag == "img" -> {
+                        val src = node.attr("src").ifBlank { node.attr("data-src") }.ifBlank { node.attr("data-original") }
+                        FileHelper.resolveFile(src, folder, fileMap)
+                    }
+                    tag == "video" -> {
+                        val src = node.attr("src").ifBlank { node.selectFirst("source")?.attr("src") ?: "" }
+                        FileHelper.resolveFile(src, folder, fileMap)
+                    }
+                    tag == "a" && FileHelper.isVideoUrl(href) -> {
+                        FileHelper.resolveFile(href, folder, fileMap)
+                    }
+                    else -> null
+                }
+
+                if (file != null) {
+                    flushText()
+                    if (FileHelper.kindOf(file.name) == FileHelper.Kind.VIDEO) {
+                        blocks.add(Block.Video(file))
+                    } else {
+                        blocks.add(Block.Image(file))
+                    }
+                    return
+                }
+
+                // If not media, check if it's a container for media or just text
+                if (node.selectFirst("img, video") != null || node.select("a").any { FileHelper.isVideoUrl(it.attr("href")) }) {
+                    // Container with media, recurse into children
+                    for (child in node.childNodes()) {
+                        processNode(child)
+                    }
+                } else {
+                    // Pure text or simple formatting element
+                    if (tag == "br") textCollector.append("<br>")
+                    else if (tag == "hr") {
+                        flushText()
+                        blocks.add(Block.Text("<hr>", isHtml = true))
+                    } else {
+                        textCollector.append(node.outerHtml())
                     }
                 }
-                tag == "br" -> blocks.add(Block.Text("<br>", isHtml = true))
-                tag == "hr" -> blocks.add(Block.Text("<hr>", isHtml = true))
-                element.selectFirst("img, video") == null && !FileHelper.isVideoUrl(element.attr("href")) && element.select("a").none { FileHelper.isVideoUrl(it.attr("href")) } -> {
-                    val snippet = element.outerHtml()
-                    if (snippet.isNotBlank() && element.text().isNotBlank()) {
-                        blocks.add(Block.Text(snippet, isHtml = true))
-                    }
-                }
-                else -> {
-                    val sb = StringBuilder()
-                    for (node in element.childNodes()) {
-                        when {
-                            node is Element && (node.tagName() == "img" || node.tagName() == "video") -> {
-                                flushText(sb)
-                                addMedia(node)
-                            }
-                            node is Element && (node.selectFirst("img, video") != null || (node.tagName() == "a" && FileHelper.isVideoUrl(node.attr("href")))) -> {
-                                flushText(sb)
-                                addBlock(node)
-                            }
-                            node is Element -> sb.append(node.outerHtml())
-                            else -> sb.append(node.toString())
-                        }
-                    }
-                    flushText(sb)
-                }
+            } else {
+                // Text node or other node type
+                textCollector.append(node.toString())
             }
         }
 
-        val topText = StringBuilder()
         for (node in body.childNodes()) {
-            when {
-                node is Element && (node.tagName() == "img" || node.tagName() == "video") -> {
-                    flushText(topText)
-                    addMedia(node)
-                }
-                node is Element && node.tagName() == "a" && FileHelper.isVideoUrl(node.attr("href")) -> {
-                    flushText(topText)
-                    addBlock(node)
-                }
-                node is Element -> {
-                    flushText(topText)
-                    addBlock(node)
-                }
-                else -> topText.append(node.toString())
-            }
+            processNode(node)
         }
-        flushText(topText)
+        flushText()
         return blocks
     }
 }

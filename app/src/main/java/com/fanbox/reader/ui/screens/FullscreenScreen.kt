@@ -38,21 +38,26 @@ fun FullscreenScreen(images: List<Uri>, startIndex: Int) {
         verticalDrag = 0f
     }
 
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
+    val fadeLimit = 800f
+    
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = (1f - (verticalDrag / fadeLimit)).coerceIn(0f, 1f)))
+    ) {
         HorizontalPager(
             state = pagerState,
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
                     translationY = verticalDrag
-                    alpha = (1f - verticalDrag / size.height.coerceAtLeast(1f)).coerceIn(0.45f, 1f)
                 }
                 .pointerInput(currentImageZoomed) {
                     if (!currentImageZoomed) {
                         detectVerticalDragGestures(
                             onDragCancel = { verticalDrag = 0f },
                             onDragEnd = {
-                                if (verticalDrag > size.height * 0.15f) BackStack.pop()
+                                if (verticalDrag > 200f) BackStack.pop()
                                 else verticalDrag = 0f
                             },
                             onVerticalDrag = { change, amount ->
@@ -64,7 +69,8 @@ fun FullscreenScreen(images: List<Uri>, startIndex: Int) {
                         )
                     }
                 },
-            userScrollEnabled = !currentImageZoomed
+            userScrollEnabled = !currentImageZoomed,
+            beyondViewportPageCount = 1
         ) { page ->
             ZoomImage(
                 uri = images[page],

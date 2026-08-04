@@ -7,26 +7,33 @@ import java.util.Locale
 
 object FileHelper {
     fun isVideoUrl(url: String?): Boolean {
-        if (url.isNullOrBlank()) return false
-        val ext = url.substringAfterLast('.', "").substringBefore('?').substringBefore('#').lowercase(Locale.ROOT)
-        return ext in setOf("mp4", "mkv", "webm", "mov", "avi", "3gp", "m4v", "ts")
+        val path = url?.trim() ?: return false
+        if (path.isBlank()) return false
+        val ext = path.substringAfterLast('.', "").substringBefore('?').substringBefore('#').lowercase(Locale.ROOT)
+        return ext in setOf("mp4", "mkv", "webm", "mov", "avi", "3gp", "m4v", "ts", "flv", "wmv", "mpg", "mpeg", "vob", "ogv")
     }
 
     fun resolveFile(src: String?, folder: DocumentFile, fileMap: Map<String, DocumentFile>): DocumentFile? {
-        if (src.isNullOrBlank()) return null
-        val decoded = Uri.decode(src)
-        val name = decoded.substringAfterLast('/').substringAfterLast('\\').substringBefore('?').substringBefore('#')
+        val path = src?.trim() ?: return null
+        if (path.isBlank() || path.startsWith("http")) return null // Ignore remote URLs for now
+        
+        val decoded = Uri.decode(path)
+        // Extract filename: handles "path/to/file.ext", "./file.ext", etc.
+        val name = decoded.substringAfterLast('/').substringAfterLast('\\').substringBefore('?').substringBefore('#').trim()
         if (name.isBlank()) return null
+        
+        // Exact match in fileMap (case-sensitive then insensitive)
         return fileMap[name]
             ?: fileMap.entries.firstOrNull { it.key.equals(name, ignoreCase = true) }?.value
+            // Fallback to findFile if not in map (e.g. newly added files)
             ?: folder.findFile(name)
     }
 
     enum class Kind { IMAGE, VIDEO, TEXT, OTHER }
 
     fun kindOf(name: String?): Kind = when (name?.substringAfterLast('.', "")?.lowercase(Locale.ROOT)) {
-        "jpg", "jpeg", "png", "webp", "gif", "bmp" -> Kind.IMAGE
-        "mp4", "mkv", "webm", "mov", "avi" -> Kind.VIDEO
+        "jpg", "jpeg", "png", "webp", "gif", "bmp", "heic", "heif" -> Kind.IMAGE
+        "mp4", "mkv", "webm", "mov", "avi", "3gp", "m4v", "ts", "flv", "wmv", "mpg", "mpeg", "vob", "ogv" -> Kind.VIDEO
         "txt", "md", "html", "htm" -> Kind.TEXT
         else -> Kind.OTHER
     }

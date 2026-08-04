@@ -21,6 +21,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.AsyncImage
 import com.fanbox.reader.R
 import com.fanbox.reader.data.model.Block
+import com.fanbox.reader.ui.components.video.InlineVideoPlayer
 
 @Composable
 fun ContentBlockItem(block: Block, images: List<Uri>, openImage: (List<Uri>, Int) -> Unit) {
@@ -45,10 +46,14 @@ fun ContentBlockItem(block: Block, images: List<Uri>, openImage: (List<Uri>, Int
                         TextView(context).apply {
                             textSize = 16f
                             movementMethod = LinkMovementMethod.getInstance()
+                            // 提升性能：关闭一些不需要的特性
+                            setHorizontallyScrolling(false)
                         }
                     },
                     update = { textView ->
-                        textView.text = spanned
+                        if (textView.text != spanned) {
+                            textView.text = spanned
+                        }
                     },
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)
                 )
